@@ -11,7 +11,8 @@ class BaseModel(object):
         Dynamically assign all attributes in `json_data` as instance
         attributes of the Model.
         """
-        pass
+        for k,v in json_data.items():
+            setattr(self,k,v)
 
     @classmethod
     def get(cls, resource_id):
@@ -19,7 +20,8 @@ class BaseModel(object):
         Returns an object of current Model requesting data to SWAPI using
         the api_client.
         """
-        pass
+        f = 'get_{0}'.format(cls.RESOURCE_NAME)
+        return cls(getattr(api_client,f)(resource_id))
 
     @classmethod
     def all(cls):
@@ -28,7 +30,8 @@ class BaseModel(object):
         later in charge of performing requests to SWAPI for each of the
         pages while looping.
         """
-        pass
+        f = "{0}QuerySet".format(cls.__name__)
+        return eval(f)()
 
 
 class People(BaseModel):
@@ -53,20 +56,32 @@ class Films(BaseModel):
 
 
 class BaseQuerySet(object):
-
     def __init__(self):
-        pass
+        self.pageNum = 0
+        self.totalCnt=0
+        self.objects = []
+        self.counter = 0
+        self.get_next_page()
 
     def __iter__(self):
-        pass
+        return self
 
     def __next__(self):
         """
         Must handle requests to next pages in SWAPI when objects in the current
         page were all consumed.
         """
-        pass
-
+        while True:
+            if self.totalCnt == self.counter:
+                raise StopIteration
+            if self.totalCnt > len(self.objects):
+                self.get_next_page()
+            if self.counter <= len(self.objects):
+                elem = self.objects[self.counter]
+                self.counter+=1
+            return elem
+            
+                
     next = __next__
 
     def count(self):
@@ -75,7 +90,22 @@ class BaseQuerySet(object):
         If the counter is not persisted as a QuerySet instance attr,
         a new request is performed to the API in order to get it.
         """
-        pass
+        return self.totalCnt
+    
+    def get_next_page(self):
+        """ 
+        Send a new request to API
+        Create objects and append to self.objects
+        """
+        self.pageNum+=1
+        get_func = "get_{0}".format(self.RESOURCE_NAME) #i.e get_people
+        json_data = getattr(api_client,get_func)(page=self.pageNum)
+        self.totalCnt = json_data['count']
+        obj = eval(self.RESOURCE_NAME.title())
+        for j in json_data['results']:
+            o = obj(j)
+            self.objects.append(o)
+        
 
 
 class PeopleQuerySet(BaseQuerySet):
